@@ -1,5 +1,25 @@
 'use strict';
 
+// Start once half the video is visible; leave native controls available.
+document.querySelectorAll('video[data-scroll-play]').forEach((video) => {
+  if (!('IntersectionObserver' in window)) return;
+  let inView = false;
+  function updatePlayback() {
+    if (!inView || document.hidden) {
+      video.pause();
+    } else if (!video.ended) {
+      // Autoplay restrictions or a quick scroll can reject this promise.
+      video.play().catch(() => {});
+    }
+  }
+  const observer = new IntersectionObserver(([entry]) => {
+    inView = entry.isIntersecting && entry.intersectionRatio >= 0.5;
+    updatePlayback();
+  }, { threshold: [0, 0.5] });
+  observer.observe(video);
+  document.addEventListener('visibilitychange', updatePlayback);
+});
+
 // All content and original-resolution figures remain available without JavaScript.
 document.querySelectorAll('[data-gallery]').forEach((gallery) => {
   const tabList = gallery.querySelector('[role="tablist"]');
