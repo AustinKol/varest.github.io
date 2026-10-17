@@ -1,0 +1,6 @@
+.DS_Store
+.idea/
+__pycache__/
+
+# Original video source; the website serves the compressed MP4.
+/assets/Varest.mov

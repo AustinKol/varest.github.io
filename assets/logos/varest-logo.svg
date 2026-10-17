@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 348 100" role="img" aria-labelledby="title desc">
+  <title id="title">Varest</title>
+  <desc id="desc">Varest wordmark with a variable-resolution V symbol.</desc>
+  <g transform="translate(0 6)"><g fill="#243b53">
+    <path d="M8 8H28L48 58V80H37Z"/>
+    <path d="M51.2 50H71.1L59 80H51V58Z"/>
+  </g>
+  <g fill="#527991">
+    <path d="M60.8 26H80.75L72.3 47H52.4Z"/>
+    <path d="M68 8H76L70 23H62Z"/>
+    <path d="M79 8H88L81.96 23H73Z"/>
+  </g></g>
+  <text x="110" y="73" fill="#243b53" font-family="Georgia, 'Times New Roman', serif" font-size="72" letter-spacing="-2">Varest</text>
+</svg>

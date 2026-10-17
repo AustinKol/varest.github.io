@@ -1,0 +1,37 @@
+# Varest project website
+
+A buildless research website using vanilla HTML, CSS, and JavaScript. Serve the repository locally (the PDF renderer requires HTTP):
+
+```sh
+python3 -m http.server 8000 --bind 127.0.0.1
+```
+
+Visit http://127.0.0.1:8000. No package installation or build step is required. The root layout is compatible with GitHub Pages.
+
+- `index.html`: paper information, authors, figures, results, and citation.
+- `styles.css`: responsive layout and visual styling.
+- `script.js`: accessible figure tabs, and citation copying.
+- `assets/*.pdf`: original figure assets; 11 figures are displayed directly by the page’s PDF renderer.
+- `assets/varest-overview.mp4`: browser-ready H.264/AAC version of the supplied MOV.
+
+The website loads the original PDFs and renders them on responsive, high-DPI canvases using a minimal local bundle of Mozilla PDF.js 5.6.205 (Apache-2.0). No PNG figure assets are generated. This avoids native PDF viewer borders and works in the Codex preview as well. Each figure keeps an “Open PDF” link, including when JavaScript is disabled or rendering fails. The university logos remain PNG images.
+
+- `pdf-figures.js`: lazy PDF loading and rendering, including tab visibility and window resizing.
+- `assets/vendor/pdfjs/`: seven files: the pinned library, worker, QCMS color-management module, version record, and three license files. About 1.7 MB total. No CDN is required.
+
+The bundle is verified against all 11 displayed figures. Unused character maps, standard fonts, and JPEG 2000/JBIG2 decoders have been removed. If you add different PDFs later, check their rendering; additional resources from the same `pdfjs-dist@5.6.205` version may be needed.
+
+For GitHub Pages, publish the repository root with `.nojekyll`. The original `assets/Varest.mov` is only a conversion source and is not used by the website; exclude it from the published repository. Use `assets/varest-overview.mp4` for the web video.
+
+## Regenerating media
+
+Only video conversion requires FFmpeg. PDF figures need no conversion. Run from the repository root:
+
+```sh
+ffmpeg -i assets/Varest.mov -vf 'scale=1920:-2' -c:v libx264 -preset fast -crf 25 -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart assets/varest-overview.mp4
+ffmpeg -i assets/varest-overview.mp4 -frames:v 1 -vf 'scale=1280:-2' assets/video-poster-start.jpg
+```
+
+Research content and numbers are based on [arXiv:2610.18690v1](https://arxiv.org/html/2610.18690v1). The visual layout is inspired by [MVP4D](https://felixtaubner.github.io/mvp4d/); the implementation is original.
+
+Author names link to the seven ORCID profiles provided in the preprint. Martin Tin has no ORCID (confirmed by the author), so his name remains unlinked. University logos are aligned to the upper-right corner. Noto Sans is loaded from Google Fonts with system sans-serif fallbacks.
