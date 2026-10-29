@@ -27,7 +27,7 @@ For GitHub Pages, publish the repository root with `.nojekyll`. The original `as
 
 ## Regenerating media
 
-The Visualizations section shows eight scenes with two questions each: Varest tokenization and [REL] selection at every budget, and the VisionZip++, HiDrop, LearnPruner, and CORE baselines. To regenerate it from a chosen-cases run (for example after adding B=128/224), place the run at `chosen_cases_v2/` (or pass `--src`) and run the following. Change `GROUPS` in the script to pick different scenes. Requires `cwebp` (`brew install webp`).
+The Visualizations section shows eight scenes with two questions each: Varest tokenization and [REL] selection at every budget, and the VisionZip++, HiDrop, LearnPruner, and CORE baselines. To regenerate it from a chosen-cases run (for example after adding B=128/224), place the run at `chosen_cases_v2/` (or pass `--src`), with its panels written as PNG (`make_methods_gallery.py --format png`), and run the following. Change `GROUPS` in the script to pick different scenes. Existing WebP files are kept, so only new panels are encoded. Requires `cwebp` (`brew install webp`).
 
 ```sh
 python3 tools/build_cases.py
