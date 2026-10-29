@@ -76,20 +76,30 @@
 
     <section class="section" id="visualizations" aria-labelledby="visualizations-title">
       <h2 id="visualizations-title">Visualizations</h2>
-      <p class="section-intro">Pick a scene, a question, a token budget, and a baseline to compare against. Each method shows how it reduces the image tokens at that budget, stage by stage; hover an image to see where in the model it is taken and how many image tokens remain. Varest merges semantic regions before the LLM and keeps the [REL]-selected tokens from layer 16. On grounding questions, the dashed box is the ground truth and the pink box the prediction. Examples use LLaVA-1.5-7B.</p>
+      <p class="section-intro">Pick a scene, a question, a token budget, and a baseline to compare against. Each row shows how a method reduces the image tokens at that budget: first before the LLM, then inside it. Varest merges semantic regions before the LLM and keeps the [REL]-selected tokens from layer 16. On grounding questions, the dashed box is the ground truth and the pink box the prediction. Examples use LLaVA-1.5-7B.</p>
       <div class="cases" id="cases" hidden>
-        <div class="case-thumbs" id="case-thumbs" aria-label="Scene"></div>
-        <div class="case-layout">
-          <div class="case-controls">
+        <div class="case-thumbs" id="case-thumbs" role="group" aria-label="Scene"></div>
+        <div class="case-panel">
+          <div class="case-setup">
             <div class="case-input" id="case-input"></div>
-            <div class="case-toggles" id="case-prompts"></div>
-            <div class="case-toggles" id="case-budget"></div>
+            <div class="case-controls">
+              <fieldset class="case-field">
+                <legend>Question <span class="case-bench" id="case-bench"></span></legend>
+                <div class="case-questions" id="case-prompts"></div>
+                <p class="case-expected" id="case-expected"></p>
+              </fieldset>
+              <div class="case-field">
+                <div class="case-field-head"><label for="case-budget">Token budget</label><output id="case-budget-value" for="case-budget"></output></div>
+                <input class="case-range" type="range" id="case-budget" min="0" max="0" step="1" value="0">
+                <div class="case-ticks" id="case-ticks" aria-hidden="true"></div>
+              </div>
+              <fieldset class="case-field">
+                <legend>Compare Varest with</legend>
+                <div class="case-segments" id="case-baseline"></div>
+              </fieldset>
+            </div>
           </div>
-          <div class="case-compare">
-            <p>Compare with</p>
-            <div class="case-toggles" id="case-baseline"></div>
-            <div class="case-grid" id="case-grid"></div>
-          </div>
+          <div class="case-table" id="case-table"></div>
         </div>
       </div>
       <noscript><p class="case-noscript">The interactive examples need JavaScript. Static figures: <a href="assets/qualitative_analysis.pdf">tokenization across budgets</a>, <a href="assets/baseline_visualization.pdf">baseline comparison</a>, <a href="assets/prompt_sensitivity.pdf">different prompts</a>.</p></noscript>
