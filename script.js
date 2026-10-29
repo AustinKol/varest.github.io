@@ -135,6 +135,165 @@ document.querySelectorAll('video[data-scroll-play]').forEach((video) => {
   render();
 })();
 
+// Varest budget sweep. Data comes from assets/sweep/sweep.js (tools/build_sweep.py).
+(() => {
+  const data = window.VAREST_SWEEP;
+  const root = document.querySelector('#sweep');
+  if (!data || !root) return;
+  const $ = (selector) => root.querySelector(selector);
+  // LLaVA-1.5 encodes an image as a 24 × 24 grid of tokens.
+  const FULL_TOKENS = 576;
+  const budgets = data.budgets.map(String);
+  const state = { group: 0, prompt: 0, budget: budgets.indexOf('32') };
+  const slider = $('#sweep-budget');
+  const playButton = $('#sweep-play');
+  const preloaded = new Set();
+  let timer = null;
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function percent(budget) {
+    return `${+(budget / FULL_TOKENS * 100).toFixed(2)}%`;
+  }
+
+  function verdict(run) {
+    const answer = run.iou == null ? run.answer : `IoU ${run.iou.toFixed(2)}`;
+    return `${run.ok ? '✓' : '✗'} ${answer}`;
+  }
+
+  // One panel with its caption; grounding questions get the ground-truth (dashed) and predicted boxes.
+  function panel(src, caption, prompt, run) {
+    const figure = el('figure', 'sweep-shot');
+    const frame = el('div', 'frame');
+    const img = el('img');
+    Object.assign(img, { src, alt: caption, decoding: 'async' });
+    frame.append(img);
+    [[prompt.gtBox, 'box-gt'], [run?.box, 'box-pred']].forEach(([box, className]) => {
+      if (!box) return;
+      const [x1, y1, x2, y2] = box.map((v) => Math.min(Math.max(v, 0), 1) * 100);
+      const node = el('span', `box ${className}`);
+      Object.assign(node.style, { left: `${x1}%`, top: `${y1}%`, width: `${x2 - x1}%`, height: `${y2 - y1}%` });
+      frame.append(node);
+    });
+    figure.append(frame, el('figcaption', '', caption));
+    return figure;
+  }
+
+  function stop() {
+    window.clearInterval(timer);
+    timer = null;
+    playButton.setAttribute('aria-pressed', 'false');
+    playButton.innerHTML = '<span aria-hidden="true">▶</span> Play';
+  }
+
+  // Step through the budgets once, starting over if already at the last one.
+  function play() {
+    if (state.budget === budgets.length - 1) state.budget = 0;
+    playButton.setAttribute('aria-pressed', 'true');
+    playButton.innerHTML = '<span aria-hidden="true">❚❚</span> Pause';
+    render();
+    timer = window.setInterval(() => {
+      if (state.budget >= budgets.length - 1) return stop();
+      state.budget += 1;
+      render();
+    }, 900);
+  }
+
+  // Fetch every budget's panels for this question so the slider and playback never wait on images.
+  function preload(prompt) {
+    const load = () => Object.values(prompt.runs).forEach((run) => [run.w5, run.rel].forEach((src) => {
+      if (preloaded.has(src)) return;
+      preloaded.add(src);
+      new Image().src = src;
+    }));
+    (window.requestIdleCallback || window.setTimeout)(load);
+  }
+
+  function render() {
+    const group = data.groups[state.group];
+    const prompt = group.prompts[state.prompt];
+    const budget = budgets[state.budget];
+    const run = prompt.runs[budget];
+    root.style.setProperty('--aspect', group.aspect);
+
+    [...$('#sweep-thumbs').children].forEach((button, index) => button.setAttribute('aria-pressed', String(index === state.group)));
+    $('#sweep-view').replaceChildren(
+      panel(group.input, 'Input', prompt),
+      panel(run.w5, `Before the LLM · ${run.k} tokens${run.text ? ` (${run.text} text)` : ''}`, prompt, run),
+      panel(run.rel, `Layer ${run.layer} on · ${run.kept} tokens kept`, prompt, run),
+    );
+    const answer = $('#sweep-answer');
+    answer.className = `sweep-answer answer ${run.ok ? 'is-ok' : 'is-bad'}`;
+    answer.textContent = verdict(run);
+    $('#sweep-expected').textContent = prompt.gtBox ? 'Ground truth: the dashed box.' : `Expected answer: ${prompt.gt}`;
+
+    slider.value = String(state.budget);
+    slider.style.setProperty('--f', state.budget / Math.max(budgets.length - 1, 1));
+    slider.setAttribute('aria-valuetext', `B = ${budget}, ${percent(budget)} of ${FULL_TOKENS} image tokens; ${run.ok ? 'correct' : 'wrong'}: ${verdict(run).slice(2)}`);
+    $('#sweep-budget-value').replaceChildren(`B = ${budget}`, el('small', '', `${percent(budget)} of ${FULL_TOKENS}`));
+    [...$('#sweep-marks').children].forEach((mark, index) => {
+      const r = prompt.runs[budgets[index]];
+      mark.className = `${r.ok ? 'is-ok' : 'is-bad'}${index === state.budget ? ' is-current' : ''}`;
+      mark.title = `B = ${budgets[index]}: ${verdict(r)}`;
+    });
+    [...$('#sweep-ticks').children].forEach((tick, index) => tick.setAttribute('aria-current', String(index === state.budget)));
+    preload(prompt);
+  }
+
+  function selectGroup(index) {
+    Object.assign(state, { group: index, prompt: 0 });
+    const group = data.groups[index];
+    $('#sweep-bench').textContent = `· ${group.bench}`;
+    $('#sweep-prompts').replaceChildren(...group.prompts.map((p, i) => {
+      const label = el('label');
+      const input = el('input');
+      Object.assign(input, { type: 'radio', name: 'sweep-prompt', value: String(i), checked: i === 0 });
+      input.addEventListener('change', () => { state.prompt = i; render(); });
+      label.append(input, el('span', '', p.q));
+      return label;
+    }));
+  }
+
+  $('#sweep-thumbs').replaceChildren(...data.groups.map((group, index) => {
+    const button = el('button');
+    button.type = 'button';
+    button.title = group.title;
+    const img = el('img');
+    Object.assign(img, { src: group.input, alt: '', decoding: 'async' });
+    button.append(img, el('span', '', group.title));
+    button.addEventListener('click', () => { selectGroup(index); render(); });
+    return button;
+  }));
+
+  // Marks and tick labels sit at the slider's stops; on narrow screens only every third label shows.
+  const at = (index) => `${index / Math.max(budgets.length - 1, 1) * 100}%`;
+  $('#sweep-marks').replaceChildren(...budgets.map((_, index) => {
+    const mark = el('i');
+    mark.style.left = at(index);
+    return mark;
+  }));
+  $('#sweep-ticks').replaceChildren(...budgets.map((budget, index) => {
+    const tick = el('button', index % 3 ? 'is-minor' : '', budget);
+    tick.type = 'button';
+    tick.tabIndex = -1;
+    tick.style.left = at(index);
+    tick.addEventListener('click', () => { stop(); state.budget = index; render(); });
+    return tick;
+  }));
+  slider.max = String(budgets.length - 1);
+  slider.addEventListener('input', () => { stop(); state.budget = Number(slider.value); render(); });
+  playButton.addEventListener('click', () => (timer ? stop() : play()));
+
+  selectGroup(0);
+  root.hidden = false;
+  render();
+})();
+
 const copyButton = document.querySelector('#copy-citation');
 const copyStatus = document.querySelector('#copy-status');
 copyButton.hidden = false;
