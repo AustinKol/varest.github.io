@@ -84,44 +84,82 @@ figcaption { font-size: 15px; line-height: 1.65; margin-top: 14px; }
 .figure-details[open] summary > span { transform: rotate(45deg); }
 .figure-details > figure, .localizer-grid { margin: 16px 0 24px; }
 .localizer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
-/* Case explorer: thumbnails select a scene; the view below updates in place. */
-.case-thumbs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-bottom: 20px; }
-.case-thumbs button { display: block; padding: 0; border: 0; background: none; line-height: 1.3; }
-.case-thumbs img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; outline: 1px solid transparent; outline-offset: 2px; }
+/* Case explorer: thumbnails select a scene; one panel below holds the inputs and the comparison. */
+.case-thumbs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-bottom: 16px; }
+.case-thumbs button { position: relative; display: block; padding: 0; border: 0; border-radius: 6px; background: none; line-height: 1.3; }
+.case-thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; outline: 2px solid transparent; outline-offset: 2px; transition: outline-color .15s; }
 .case-thumbs button:hover img { outline-color: #ccc; }
 .case-thumbs [aria-pressed="true"] img { outline-color: var(--ink); }
-/* The selected scene's name sits over the bottom of its thumbnail. */
-.case-thumbs button { position: relative; border-radius: 4px; }
-.case-thumbs span { position: absolute; inset: auto 0 0; padding: 14px 6px 5px; border-radius: 0 0 4px 4px; background: linear-gradient(transparent, rgb(0 0 0 / .6)); color: #fff; font-size: 11px; font-weight: 500; text-align: left; opacity: 0; transition: opacity .15s; pointer-events: none; }
-.case-thumbs [aria-pressed="true"] span { opacity: 1; }
-.case-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
-.case-toggles button { text-align: left; padding: 4px 12px; border: 1px solid #ccc; border-radius: 999px; background: #fff; color: var(--body); font-size: 13px; }
-.case-toggles button:hover { border-color: var(--ink); }
-.case-toggles [aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
-/* The explorer sits in one bordered panel: input and pickers left, comparison right. */
-.case-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 28px; align-items: start; padding: 20px; border: 1px solid var(--line); border-radius: 8px; background: #fafafa; }
-.case-input { margin-bottom: 16px; }
-.case-input .frame { width: min(100%, calc(360px * var(--aspect))); margin-left: 0; }
-.case-compare > p { margin: 0 0 6px; color: var(--ink); font-size: 13px; font-weight: 500; }
-.case-controls .case-toggles { margin-bottom: 14px; }
-.case-compare { padding-left: 28px; border-left: 1px solid var(--line); }
-#case-baseline { margin-bottom: 16px; }
-/* Two columns, Varest and the chosen baseline; rows line up stage for stage. */
-.case-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
-.case-grid .frame { width: min(100%, calc(300px * var(--aspect))); }
-.case-method-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 13px; }
-.case-method-head strong { color: var(--ink); font-weight: 600; }
-.case-method-head.is-ours strong { color: var(--blue); }
-/* HiDrop's later stages: small panels two across, in the same footprint as one large panel. */
-.case-stage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: min(100%, calc(300px * var(--aspect))); margin-inline: auto; }
-.case-stage-grid .frame { width: 100%; }
-.shot { text-align: center; }
-.frame { position: relative; width: 100%; aspect-ratio: var(--aspect); margin-inline: auto; }
+/* The scene's name sits over the bottom of its thumbnail when selected or hovered. */
+.case-thumbs span { position: absolute; inset: auto 0 0; padding: 14px 6px 5px; border-radius: 0 0 6px 6px; background: linear-gradient(transparent, rgb(0 0 0 / .6)); color: #fff; font-size: 11px; font-weight: 500; text-align: left; opacity: 0; transition: opacity .15s; pointer-events: none; }
+.case-thumbs [aria-pressed="true"] span, .case-thumbs button:hover span { opacity: 1; }
+.case-panel { --panel-h: 260px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+/* Top: the input image beside the question, budget, and baseline pickers. */
+.case-setup { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: start; padding: 22px 24px; border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; background: #fafafa; }
+.case-input { width: min(320px, calc(240px * var(--aspect))); }
+.case-controls { display: grid; gap: 20px; }
+.case-field { min-width: 0; margin: 0; padding: 0; border: 0; }
+.case-field legend, .case-field-head label { display: block; padding: 0; margin-bottom: 8px; color: var(--ink); font-size: 13px; font-weight: 600; }
+.case-bench { font-weight: 400; color: #888; }
+.case-questions { display: grid; gap: 6px; }
+.case-questions label { display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 14px; line-height: 1.45; cursor: pointer; transition: border-color .15s; }
+.case-questions label:hover { border-color: #bbb; }
+.case-questions label:has(input:checked) { border-color: var(--ink); color: var(--ink); }
+.case-questions input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; border: 1.5px solid #aaa; border-radius: 50%; background: #fff; appearance: none; cursor: pointer; }
+.case-questions input:checked { border: 5px solid var(--ink); }
+.case-questions input:focus-visible { outline-offset: 2px; }
+.case-expected { margin: 8px 0 0; font-size: 13px; }
+/* Token budget: a stepped slider with the budgets labelled beneath. --f is the selected fraction. */
+.case-field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.case-field-head output { color: var(--ink); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.case-field-head small { margin-left: 8px; color: #888; font-size: 12px; font-weight: 400; }
+.case-range { --f: 0; display: block; width: 100%; height: 22px; margin: 0; background: none; appearance: none; -webkit-appearance: none; cursor: pointer; }
+.case-range::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--ink), var(--ink)) 0 0 / calc(9px + (100% - 18px) * var(--f)) 100% no-repeat, #ddd; }
+.case-range::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--ink), var(--ink)) 0 0 / calc(9px + (100% - 18px) * var(--f)) 100% no-repeat, #ddd; }
+.case-range::-webkit-slider-thumb { box-sizing: border-box; width: 18px; height: 18px; margin-top: -7px; border: 3px solid #fff; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 1px var(--ink), 0 1px 3px rgb(0 0 0 / .25); -webkit-appearance: none; }
+.case-range::-moz-range-thumb { box-sizing: border-box; width: 18px; height: 18px; border: 3px solid #fff; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 1px var(--ink), 0 1px 3px rgb(0 0 0 / .25); }
+.case-range:focus-visible { outline: none; }
+.case-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--ink), 0 0 0 5px rgb(38 124 179 / .4); }
+.case-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 1px var(--ink), 0 0 0 5px rgb(38 124 179 / .4); }
+.case-ticks { position: relative; height: 20px; margin: 2px 9px 0; }
+.case-ticks button { position: absolute; top: 0; padding: 0 2px; border: 0; background: none; color: #888; font-size: 12px; font-variant-numeric: tabular-nums; transform: translateX(-50%); }
+.case-ticks button:hover { color: var(--ink); }
+.case-ticks [aria-current="true"] { color: var(--ink); font-weight: 600; }
+/* Baseline: a segmented control, one choice at a time. */
+.case-segments { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 9px; background: #ececec; }
+.case-segments label { position: relative; cursor: pointer; }
+.case-segments input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.case-segments span { display: block; padding: 5px 14px; border-radius: 7px; color: var(--body); font-size: 14px; transition: background .15s, color .15s; }
+.case-segments label:hover span { color: var(--ink); }
+.case-segments input:checked + span { background: #fff; color: var(--ink); font-weight: 500; box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+.case-segments input:focus-visible + span { outline: 3px solid var(--blue); outline-offset: 1px; }
+/* Bottom: one row per method, columns in pipeline order. */
+.case-table { padding: 4px 24px 8px; }
+.case-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) minmax(0, 2fr) 150px; gap: 20px; align-items: center; padding: 18px 0; }
+.case-row + .case-row { border-top: 1px solid var(--line); }
+.case-row-head { padding: 14px 0 0; align-items: end; color: #888; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.case-row-head + .case-row { border-top: 0; }
+.case-method strong { color: var(--ink); font-size: 15px; font-weight: 600; }
+.case-row.is-ours .case-method strong { color: var(--blue); }
+.case-stage { min-width: 0; }
+.case-stage-label { display: none; }
+.case-shots { display: flex; gap: 6px; }
+.case-shots .frame { width: min(100%, calc(var(--panel-h) * var(--aspect))); margin: 0; }
+/* A single panel inside the LLM matches the size of the panel before it. */
+.case-shots > .shot:only-child { width: 50%; }
+.case-row > .case-stage:nth-child(2) .shot:only-child { width: 100%; }
+.is-strip .shot { flex: 0 0 calc((100% - (var(--slots) - 1) * 6px) / var(--slots)); min-width: 0; max-width: calc(var(--panel-h) * var(--aspect)); }
+.is-strip .frame { width: 100%; }
+.shot figcaption { margin-top: 6px; color: var(--body); font-size: 12px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+.is-strip figcaption { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.case-none { margin: 0; color: #888; font-size: 13px; line-height: 1.5; }
+.case-answer .answer { font-size: 14px; }
+.frame { position: relative; width: 100%; aspect-ratio: var(--aspect); }
 .frame img { width: 100%; height: 100%; object-fit: contain; }
 .box { position: absolute; pointer-events: none; }
 .box-gt { border: 2px dashed #fff; outline: 1px solid rgb(0 0 0 / .5); }
 .box-pred { border: 2px solid #e8336d; }
-.answer { margin: 0; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.answer { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
 .answer.is-ok { color: #1f7a3d; }
 .answer.is-bad { color: #c0362c; }
 .case-noscript { text-align: center; font-size: 15px; }
@@ -171,9 +209,22 @@ pre { padding: 24px; background: var(--surface); overflow-x: auto; margin: 0; fo
   .localizer-grid, .discussion-grid { grid-template-columns: 1fr; gap: 24px; }
   .findings { grid-template-columns: 1fr; gap: 24px; }
   .case-thumbs { grid-template-columns: repeat(4, 1fr); }
-  .case-layout { grid-template-columns: 1fr; gap: 20px; padding: 14px; }
-  .case-compare { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--line); }
-  .case-grid { gap: 8px 10px; }
+  .case-panel { --panel-h: 220px; }
+  .case-setup { grid-template-columns: 1fr; gap: 18px; padding: 16px; }
+  .case-input { width: min(100%, calc(220px * var(--aspect))); }
+  .case-table { padding: 0 16px 4px; }
+  /* Rows become cards: name and answer on top, the stages beneath with their own labels. */
+  .case-row-head { display: none; }
+  .case-segments { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .case-segments span { text-align: center; }
+  .case-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "method answer" "before inside"; gap: 10px 12px; align-items: start; padding: 16px 0; }
+  .case-row.has-strip { grid-template-areas: "method answer" "before before" "inside inside"; }
+  .case-method { grid-area: method; }
+  .case-answer { grid-area: answer; text-align: right; }
+  .case-row > .case-stage:nth-child(2) { grid-area: before; }
+  .case-row > .case-stage:nth-child(3) { grid-area: inside; }
+  .case-stage-label { display: block; margin: 0 0 6px; color: #888; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  .case-shots > .shot:only-child { width: 100%; }
   .table-heading { display: block; }
   .table-heading h3 { margin-bottom: 6px; }
   .table-heading span { display: block; margin-bottom: 12px; }

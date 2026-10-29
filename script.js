@@ -26,8 +26,13 @@ document.querySelectorAll('video[data-scroll-play]').forEach((video) => {
   const root = document.querySelector('#cases');
   if (!data || !root) return;
   const $ = (selector) => root.querySelector(selector);
+  // LLaVA-1.5 encodes an image as a 24 × 24 grid of tokens.
+  const FULL_TOKENS = 576;
   const baselines = data.methods.filter((m) => m.key !== 'varest');
+  const budgets = data.budgets.map(String);
   const state = { group: 0, prompt: 0, budget: 0, baseline: 0 };
+  const slider = $('#case-budget');
+  const preloaded = new Set();
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -36,14 +41,16 @@ document.querySelectorAll('video[data-scroll-play]').forEach((video) => {
     return node;
   }
 
-  // A row of toggle buttons; the selected one has aria-pressed="true".
-  function toggles(container, labels, selected, onSelect) {
-    container.replaceChildren(...labels.map((label, index) => {
-      const button = el('button', '', label);
-      button.type = 'button';
-      button.setAttribute('aria-pressed', String(index === selected));
-      button.addEventListener('click', () => { onSelect(index); render(); });
-      return button;
+  // Radio options. They are rebuilt only when their labels change, so keyboard
+  // focus stays put while arrow keys move through them.
+  function radios(container, name, labels, selected, onSelect) {
+    container.replaceChildren(...labels.map((text, index) => {
+      const label = el('label');
+      const input = el('input');
+      Object.assign(input, { type: 'radio', name, value: String(index), checked: index === selected });
+      input.addEventListener('change', () => { onSelect(index); render(); });
+      label.append(input, el('span', '', text));
+      return label;
     }));
   }
 
@@ -52,12 +59,11 @@ document.querySelectorAll('video[data-scroll-play]').forEach((video) => {
     return el('p', `answer ${run.ok ? 'is-ok' : 'is-bad'}`, `${run.ok ? '✓' : '✗'} ${answer}`);
   }
 
-  function shot(src, caption, prompt, run, answer = true) {
+  function shot(src, caption, prompt, run) {
     const figure = el('figure', 'shot');
     const frame = el('div', 'frame');
     const img = el('img');
-    // No visible caption; the stage and token count show on hover.
-    Object.assign(img, { src, alt: caption, title: caption, decoding: 'async' });
+    Object.assign(img, { src, alt: caption || '', decoding: 'async' });
     frame.append(img);
     // Grounding cases: draw the ground-truth (dashed) and predicted boxes.
     [[prompt?.gtBox, 'box-gt'], [run?.box, 'box-pred']].forEach(([box, className]) => {
@@ -68,69 +74,141 @@ document.querySelectorAll('video[data-scroll-play]').forEach((video) => {
       frame.append(node);
     });
     figure.append(frame);
-    if (run && answer) figure.append(verdict(run));
+    if (caption) figure.append(el('figcaption', '', caption));
     return figure;
   }
 
-  // Normalize stage labels to "<where in the model>: <tokens left>".
-  function stageCaption(label, run) {
-    const count = label.match(/(\d+)$/)?.[1] ?? label.match(/^(\d+) tokens/)?.[1] ?? run.k;
-    const layer = label.match(/layer[- ](\d+)/i)?.[1];
-    return layer ? `Layer ${layer}: ${count}` : `Before LLM: ${count}`;
+  // Sort a run's panels by where they are taken: before the LLM, or after a
+  // decoder layer. Each keeps the number of image tokens left at that point.
+  function stages(key, run) {
+    if (key === 'varest') {
+      const [, tokens, kept, layer] = run.info.match(/K=(\d+).*K′=(\d+) after layer (\d+)/) || [];
+      return { before: [{ src: run.panels[0][1], count: tokens }], inside: [{ src: run.panels[1][1], count: kept, layer }] };
+    }
+    const before = [];
+    const inside = [];
+    run.panels.forEach(([label, src]) => {
+      const count = label.match(/(\d+)$/)?.[1] ?? label.match(/^(\d+) tokens/)?.[1] ?? run.k;
+      const layer = label.match(/layer[- ](\d+)/i)?.[1];
+      (layer ? inside : before).push({ src, count, layer });
+    });
+    return { before, inside };
   }
 
-  function head(label, run, className) {
-    const node = el('div', `case-method-head ${className}`);
-    node.append(el('strong', '', label), verdict(run));
+  // One table cell: its panels, or a note when the method has no stage here.
+  // Several panels share a single row (a strip) sized for the method's longest
+  // schedule across budgets, so panels keep their size as the budget changes.
+  function cell(stage, shots, note, slots) {
+    const node = el('div', `case-stage${slots > 1 ? ' is-strip' : ''}`);
+    node.append(el('p', 'case-stage-label', stage));
+    if (!shots.length) {
+      node.append(el('p', 'case-none', note));
+      return node;
+    }
+    const row = el('div', 'case-shots');
+    if (slots > 1) row.style.setProperty('--slots', slots);
+    row.append(...shots);
+    node.append(row);
     return node;
   }
 
-  // Varest beside one chosen baseline. Rows line up: the first reduction on top,
-  // the in-LLM selection below (for baselines with several later stages, a grid of small panels).
+  function methodRow(label, key, prompt) {
+    const run = prompt.methods[key][budgets[state.budget]];
+    const { before, inside } = stages(key, run);
+    const slots = Math.max(...Object.values(prompt.methods[key]).map((r) => stages(key, r).inside.length));
+    const row = el('div', `case-row${key === 'varest' ? ' is-ours' : ''}${slots > 1 ? ' has-strip' : ''}`);
+    const name = el('div', 'case-method');
+    name.append(el('strong', '', label));
+    const kept = before.at(-1)?.count;
+    const answer = el('div', 'case-answer');
+    answer.append(verdict(run));
+    row.append(
+      name,
+      cell('Before the LLM', before.map(({ src, count }) => shot(src, `${count} tokens`, prompt, run)),
+        `No reduction; all ${FULL_TOKENS} tokens enter the LLM.`),
+      cell('Inside the LLM', inside.map(({ src, count, layer }) =>
+        shot(src, slots > 1 ? `L${layer} · ${count}` : `Layer ${layer} · ${count} tokens`, prompt, run)),
+        `No further reduction; ${kept} tokens reach every layer.`, slots),
+      answer,
+    );
+    return row;
+  }
+
+  // Fetch the other budgets' panels in the background so the slider feels instant.
+  function preload(prompt) {
+    const keys = ['varest', baselines[state.baseline].key];
+    const load = () => keys.forEach((key) => Object.values(prompt.methods[key]).forEach((run) =>
+      run.panels.forEach(([, src]) => {
+        if (preloaded.has(src)) return;
+        preloaded.add(src);
+        new Image().src = src;
+      })));
+    (window.requestIdleCallback || window.setTimeout)(load);
+  }
+
+  function percent(budget) {
+    return `${+(budget / FULL_TOKENS * 100).toFixed(2)}%`;
+  }
+
   function render() {
     const group = data.groups[state.group];
     const prompt = group.prompts[state.prompt];
-    const budgets = data.budgets.map(String);
     const budget = budgets[state.budget];
-    root.style.setProperty('--aspect', group.aspect);
-    [...$('#case-thumbs').children].forEach((button, index) => button.setAttribute('aria-pressed', String(index === state.group)));
-    toggles($('#case-prompts'), group.prompts.map((p) => p.q), state.prompt, (index) => { state.prompt = index; });
-    toggles($('#case-budget'), budgets.map((b) => `B = ${b}`), state.budget, (index) => { state.budget = index; });
-    toggles($('#case-baseline'), baselines.map((m) => m.label), state.baseline, (index) => { state.baseline = index; });
-    $('#case-input').replaceChildren(shot(group.input, group.title));
-
-    const ours = prompt.methods.varest[budget];
-    const [, tokens, kept, layer] = ours.info.match(/K=(\d+).*K′=(\d+) after layer (\d+)/) || [];
     const { key, label } = baselines[state.baseline];
-    const run = prompt.methods[key][budget];
-    const stages = run.panels.map(([caption, src]) => [stageCaption(caption, run), src]);
-    const later = stages.slice(1);
+    root.style.setProperty('--aspect', group.aspect);
 
-    const cells = [
-      head('Varest', ours, 'is-ours'), head(label, run, ''),
-      shot(ours.panels[0][1], `Before LLM: ${tokens}`, prompt, ours, false),
-      shot(stages[0][1], stages[0][0], prompt, run, false),
-      shot(ours.panels[1][1], `Layer ${layer}: ${kept}`, prompt, ours, false),
-    ];
-    if (later.length > 1) {
-      const grid = el('div', 'case-stage-grid');
-      grid.append(...later.map(([caption, src]) => shot(src, caption, prompt, run, false)));
-      cells.push(grid);
-    } else {
-      cells.push(later.length ? shot(later[0][1], later[0][0], prompt, run, false) : el('span'));
-    }
-    $('#case-grid').replaceChildren(...cells);
+    [...$('#case-thumbs').children].forEach((button, index) => button.setAttribute('aria-pressed', String(index === state.group)));
+    $('#case-input').replaceChildren(shot(group.input, '', prompt));
+    $('#case-bench').textContent = `· ${group.bench}`;
+    $('#case-expected').textContent = prompt.gtBox ? 'Ground truth: the dashed box.' : `Expected answer: ${prompt.gt}`;
+
+    slider.value = String(state.budget);
+    slider.style.setProperty('--f', state.budget / Math.max(budgets.length - 1, 1));
+    slider.setAttribute('aria-valuetext', `B = ${budget}, ${percent(budget)} of ${FULL_TOKENS} image tokens`);
+    const output = $('#case-budget-value');
+    output.replaceChildren(`B = ${budget}`, el('small', '', `${percent(budget)} of ${FULL_TOKENS}`));
+    [...$('#case-ticks').children].forEach((tick, index) => tick.setAttribute('aria-current', String(index === state.budget)));
+
+    const head = el('div', 'case-row case-row-head');
+    head.append(...['', 'Before the LLM', 'Inside the LLM', 'Answer'].map((text) => el('span', '', text)));
+    $('#case-table').replaceChildren(
+      head,
+      methodRow('Varest', 'varest', prompt),
+      methodRow(label, key, prompt),
+    );
+    preload(prompt);
+  }
+
+  function selectGroup(index) {
+    Object.assign(state, { group: index, prompt: 0 });
+    radios($('#case-prompts'), 'case-prompt', data.groups[index].prompts.map((p) => p.q), 0, (i) => { state.prompt = i; });
   }
 
   $('#case-thumbs').replaceChildren(...data.groups.map((group, index) => {
     const button = el('button');
     button.type = 'button';
+    button.title = group.title;
     const img = el('img');
     Object.assign(img, { src: group.input, alt: '', decoding: 'async' });
     button.append(img, el('span', '', group.title));
-    button.addEventListener('click', () => { Object.assign(state, { group: index, prompt: 0 }); render(); });
+    button.addEventListener('click', () => { selectGroup(index); render(); });
     return button;
   }));
+
+  // The slider steps through the exported budgets, however many there are.
+  slider.max = String(budgets.length - 1);
+  slider.addEventListener('input', () => { state.budget = Number(slider.value); render(); });
+  $('#case-ticks').replaceChildren(...budgets.map((budget, index) => {
+    const tick = el('button', '', budget);
+    tick.type = 'button';
+    tick.tabIndex = -1;
+    tick.style.left = `${index / Math.max(budgets.length - 1, 1) * 100}%`;
+    tick.addEventListener('click', () => { state.budget = index; render(); });
+    return tick;
+  }));
+  radios($('#case-baseline'), 'case-baseline', baselines.map((m) => m.label), state.baseline, (index) => { state.baseline = index; });
+
+  selectGroup(0);
   root.hidden = false;
   render();
 })();
