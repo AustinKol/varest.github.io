@@ -166,22 +166,55 @@ document.querySelectorAll('video[data-scroll-play]').forEach((video) => {
     return `${run.ok ? '✓' : '✗'} ${answer}`;
   }
 
-  // One panel with its caption; grounding questions get the ground-truth (dashed) and predicted boxes.
-  function panel(src, caption, prompt, run) {
+  // The three panels (input, before the LLM, [REL] kept) are built once. Each frame stacks two images: a new
+  // budget decodes in the hidden one and then fades in over the old, so the frame never shows empty.
+  const panels = [0, 1, 2].map(() => {
     const figure = el('figure', 'sweep-shot');
     const frame = el('div', 'frame');
-    const img = el('img');
-    Object.assign(img, { src, alt: caption, decoding: 'async' });
-    frame.append(img);
+    const imgs = [el('img'), el('img')];
+    imgs.forEach((img) => Object.assign(img, { alt: '', decoding: 'async' }));
+    const caption = el('figcaption');
+    frame.append(...imgs);
+    figure.append(frame, caption);
+    $('#sweep-view').append(figure);
+    return { frame, imgs, caption, front: 1, settled: 0 };
+  });
+  const FADE_MS = 250;
+  let renderId = 0;
+
+  // Load `src` into the panel's hidden image; resolves to that image once decoded, or null if it already shows.
+  // The hidden image is the one that just faded out, so wait for that fade to finish before reusing it.
+  async function load(p, src, id) {
+    const wait = p.settled - Date.now();
+    if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait));
+    if (id !== renderId || p.imgs[p.front].getAttribute('src') === src) return null;
+    const back = p.imgs[1 - p.front];
+    back.src = src;
+    await back.decode().catch(() => {});
+    return back;
+  }
+
+  // Bring a decoded image to the front; the old one stays opaque underneath until the fade-in has finished.
+  function swap(p, img) {
+    if (!img) return;
+    const old = p.imgs[p.front];
+    p.front = p.imgs.indexOf(img);
+    p.settled = Date.now() + FADE_MS + 20;
+    old.classList.remove('is-front');
+    img.classList.add('is-front', 'is-shown');
+    window.setTimeout(() => { if (!old.classList.contains('is-front')) old.classList.remove('is-shown'); }, FADE_MS + 20);
+  }
+
+  // Grounding questions get the ground-truth (dashed) and predicted boxes.
+  function boxes(p, prompt, run) {
+    p.frame.querySelectorAll('.box').forEach((node) => node.remove());
     [[prompt.gtBox, 'box-gt'], [run?.box, 'box-pred']].forEach(([box, className]) => {
       if (!box) return;
       const [x1, y1, x2, y2] = box.map((v) => Math.min(Math.max(v, 0), 1) * 100);
       const node = el('span', `box ${className}`);
       Object.assign(node.style, { left: `${x1}%`, top: `${y1}%`, width: `${x2 - x1}%`, height: `${y2 - y1}%` });
-      frame.append(node);
+      p.frame.append(node);
     });
-    figure.append(frame, el('figcaption', '', caption));
-    return figure;
   }
 
   function stop() {
@@ -219,18 +252,30 @@ document.querySelectorAll('video[data-scroll-play]').forEach((video) => {
     const prompt = group.prompts[state.prompt];
     const budget = budgets[state.budget];
     const run = prompt.runs[budget];
-    root.style.setProperty('--aspect', group.aspect);
 
     [...$('#sweep-thumbs').children].forEach((button, index) => button.setAttribute('aria-pressed', String(index === state.group)));
-    $('#sweep-view').replaceChildren(
-      panel(group.input, 'Input', prompt),
-      panel(run.w5, `Before the LLM · ${run.k} tokens${run.text ? ` (${run.text} text)` : ''}`, prompt, run),
-      panel(run.rel, `Layer ${run.layer} on · ${run.kept} tokens kept`, prompt, run),
-    );
-    const answer = $('#sweep-answer');
-    answer.className = `sweep-answer answer ${run.ok ? 'is-ok' : 'is-bad'}`;
-    answer.textContent = verdict(run);
-    $('#sweep-expected').textContent = prompt.gtBox ? 'Ground truth: the dashed box.' : `Expected answer: ${prompt.gt}`;
+    // Images, captions, boxes and the answer change together once all three panels have decoded.
+    // A newer render (a fast drag, or the next step of playback) supersedes this one.
+    const id = ++renderId;
+    const views = [
+      [group.input, 'Input', null],
+      [run.w5, `Before the LLM · ${run.k} tokens${run.text ? ` (${run.text} text)` : ''}`, run],
+      [run.rel, `Layer ${run.layer} on · ${run.kept} tokens kept`, run],
+    ];
+    Promise.all(views.map(([src], i) => load(panels[i], src, id))).then((loaded) => {
+      if (id !== renderId) return;
+      root.style.setProperty('--aspect', group.aspect);
+      views.forEach(([, caption, r], i) => {
+        swap(panels[i], loaded[i]);
+        panels[i].imgs[panels[i].front].alt = caption;
+        panels[i].caption.textContent = caption;
+        boxes(panels[i], prompt, r);
+      });
+      const answer = $('#sweep-answer');
+      answer.className = `sweep-answer answer ${run.ok ? 'is-ok' : 'is-bad'}`;
+      answer.textContent = verdict(run);
+      $('#sweep-expected').textContent = prompt.gtBox ? 'Ground truth: the dashed box.' : `Expected answer: ${prompt.gt}`;
+    });
 
     slider.value = String(state.budget);
     slider.style.setProperty('--f', state.budget / Math.max(budgets.length - 1, 1));

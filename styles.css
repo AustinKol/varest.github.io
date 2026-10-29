@@ -144,6 +144,11 @@ figcaption { font-size: 15px; line-height: 1.65; margin-top: 14px; }
 /* Input, the tokenization before the LLM, and the tokens [REL] keeps: three equal columns. */
 .sweep-view { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .sweep-shot .frame { width: min(100%, calc(340px * var(--aspect))); margin: 0 auto; }
+/* Two stacked images per panel: the incoming one fades in on top of the outgoing one. */
+.sweep-shot .frame img { position: absolute; inset: 0; opacity: 0; transition: opacity .25s ease; }
+.sweep-shot .frame img.is-shown { opacity: 1; }
+.sweep-shot .frame img.is-front { z-index: 1; }
+.sweep-shot .box { z-index: 2; }
 .sweep-shot figcaption { margin-top: 8px; color: var(--body); font-size: 13px; line-height: 1.4; text-align: center; font-variant-numeric: tabular-nums; }
 .sweep-result { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 4px 16px; margin: 18px 0 20px; }
 .sweep-answer { font-size: 18px; }
